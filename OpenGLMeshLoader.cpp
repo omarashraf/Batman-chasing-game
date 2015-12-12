@@ -1,11 +1,19 @@
+#include <vector>
 #include "Model_3DS.h"
 #include "GLTexture.h"
 #include <glut.h>
+#include <Windows.h>
+#include <stdlib.h> 
 #include <stdio.h>
 
 
 
 // old variables
+float x_rpg = 27;
+bool bullet = false;
+float rpg_range = 0;
+bool out = false;
+
 bool shoot2 = false;
 float rot_angle_joker_car_left = 0;
 float rot_angle_joker_left = 0;
@@ -91,6 +99,65 @@ GLTexture tex_building6;
 GLTexture tex_building7;
 GLTexture tex_building8;
 
+// Bullets class
+
+class Bullets{ //new
+public:
+	float xin, x, z;
+	int pos;
+
+	Bullets(float x, float z, int pos) {
+		this->xin = x;
+		this->z = z;
+		this->x = x;
+		this->pos = pos;
+	}
+};
+
+std::vector<Bullets> bullets; //new
+bool gameover; //new
+
+void DrawBullets() { //new: Displaying the bullets
+	if (bullets.size()>0) {
+		for (int i = 0; i<bullets.size(); i++)
+		{
+			glPushMatrix();
+			glColor3f(0.0f, 1.0f, 1.0f);
+			glTranslated(bullets[i].x + 0.75, 4, bullets[i].z);
+			glutSolidSphere(0.5, 10, 10);
+			glPopMatrix();
+		}
+	}
+}
+
+void check() { //new: check if a bullet has hit the batmobile
+	if (bullets.size()>0) {
+		for (int i = 0; i<bullets.size(); i++) {
+			if (bullets[i].pos == batman_lane && bullets[i].x <= x_step + 2 && x_step - 2 <= bullets[i].x) {
+				bullets.clear();
+				gameover = true;
+				break;
+			}
+			else {
+				gameover = false;
+			}
+		}
+	}
+}
+
+void MoveBullets() { //new: change each bullet's xdirection
+	if (bullets.size()>0) {
+		for (int i = 0; i < bullets.size(); i++) {
+			if (bullets[i].xin - bullets[i].x >= 30) {
+				bullets.erase(bullets.begin() + i);
+			}
+			else
+				bullets[i].x -= 0.02;
+		}
+	}
+}
+
+// print to the screen
 void print(char *string, float x, float y, float z)
 {
 	glDisable(GL_LIGHTING);
@@ -456,11 +523,13 @@ void jChange() {
 	if (dir == 0 && !jRight && !jLeft && predicted_lane < lane) {
 		if (predicted_lane > batman_lane) {
 			lChangeValue(predicted_lane);
+			//bullets.push_back(Bullets(x_joker, z_joker, lane)); //new: adding bullets
 			jLeft = true;
 		}
 		else {
 			if (x_step + (batmobile_length / 2) - 5.6 <= x_joker - (joker_car_length / 2) && !hit) {
 				lChangeValue(predicted_lane);
+				//bullets.push_back(Bullets(x_joker, z_joker, lane)); //new: adding bullets
 				jLeft = true;
 			}
 		}
@@ -482,96 +551,131 @@ void jChange() {
 
 // Animation function
 void Anim() {
+	check();
 	counter += 1;
-	if (escaped && !shoot && !shoot2) {
-		// joker escapes plus his laugh
-		escape_counter += 1;
-		x_joker += 0.25;
-		x_joker_car += 0.25;
+	if (gameover) {
+		escaped = true;
+		gameover = false;
 	}
 	else {
-		if (!shoot && !shoot2) {
-			if (!hit) {
-				x_joker += 0.18;
-				x_joker_car += 0.18;
-			}
-			else {
-				x_joker += 0.3;
-				x_joker_car += 0.3;
-				x_step -= 0.1;
-				x_camera -= 0.1;
-				hit_range--;
-				if (hit_range <= 0) {
-					hit = false;
-				}
-			}
-
-			if (jLeft) {
-				z_joker -= 0.1;
-				if (z_joker < z_end_left_joker) {
-					jLeft = false;
-					z_joker = z_end_left_joker;
-				}
-			}
-			else {
-				if (jRight) {
-					z_joker += 0.1;
-					if (z_joker > z_end_right_joker) {
-						jRight = false;
-						z_joker = z_end_right_joker;
-					}
-				}
-			}
-
-			if (!move_left && !move_right && !hit) {
-				x_step += 0.206;
-				x_camera += 0.206;
-			}
-			else {
-				if (move_right) {
-					if (z_step < z_end_right) {
-						z_step += 0.1;
-					}
-					else {
-						z_step = z_end_right;
-						move_right = false;
-					}
-				}
-
-				if (move_left) {
-					if (z_step > z_end_left) {
-						z_step -= 0.1;
-					}
-					else {
-						z_step = z_end_left;
-						move_left = false;
-					}
-				}
-				// to be changed to give the delay effect
-				x_step += 0.1;
-				x_camera += 0.1;
-			}
+		if (escaped && !shoot && !shoot2) {
+			// joker escapes plus his laugh
+			escape_counter += 1;
+			x_joker += 0.25;
+			x_joker_car += 0.25;
+			x_rpg += 0.25;
 		}
 		else {
-			if (shoot) {
-				rot_angle_joker -= 1;
-				rot_angle_joker_car_right += 1;
-				x_joker_factor += 0.03;
-				x_joker += 0.09;
-				x_joker_car += 0.09;
+			if (!shoot && !shoot2) {
+				if (bullet) {
+					if (rpg_range >= 3.3 && !out) {
+						//bullet = false;
+						out = true;
+						rpg_range = 3.3;
+					}
+					else {
+						if (rpg_range < 0 && out) {
+							bullet = false;
+							rpg_range = 0;
+							out = false;
+						}
+					}
+					if (out) {
+						rpg_range -= 0.1;
+					}
+					else {
+						rpg_range += 0.1;
+					}
+					
+				}
+				if (!hit) {
+					MoveBullets(); //new: changing x dir & removing bullets after el dis betwen initial position and now postion is greater than 10
+					x_joker += 0.18;
+					x_joker_car += 0.18;
+					x_rpg += 0.18;
+				}
+				else {
+					x_joker += 0.3;
+					x_joker_car += 0.3;
+					x_rpg += 0.3;
+					x_step -= 0.1;
+					x_camera -= 0.1;
+					hit_range--;
+					if (hit_range <= 0) {
+						hit = false;
+					}
+				}
+
+				if (jLeft) {
+					z_joker -= 0.1;
+					if (z_joker < z_end_left_joker) {
+						jLeft = false;
+						z_joker = z_end_left_joker;
+					}
+				}
+				else {
+					if (jRight) {
+						z_joker += 0.1;
+						if (z_joker > z_end_right_joker) {
+							jRight = false;
+							z_joker = z_end_right_joker;
+						}
+					}
+				}
+
+				if (!move_left && !move_right && !hit) {
+					x_step += 0.206;
+					x_camera += 0.206;
+				}
+				else {
+					if (move_right) {
+						if (z_step < z_end_right) {
+							z_step += 0.1;
+						}
+						else {
+							z_step = z_end_right;
+							move_right = false;
+						}
+					}
+
+					if (move_left) {
+						if (z_step > z_end_left) {
+							z_step -= 0.1;
+						}
+						else {
+							z_step = z_end_left;
+							move_left = false;
+						}
+					}
+					// to be changed to give the delay effect
+					x_step += 0.1;
+					x_camera += 0.1;
+				}
 			}
 			else {
-				if (shoot2) {
-					rot_angle_joker_left += 1;
-					rot_angle_joker_car_left -= 1;
+				if (shoot) {
+					rot_angle_joker -= 1;
+					rot_angle_joker_car_right += 1;
 					x_joker_factor += 0.03;
 					x_joker += 0.09;
 					x_joker_car += 0.09;
+					x_rpg += 0.09;
 				}
+				else {
+					if (shoot2) {
+						rot_angle_joker_left += 1;
+						rot_angle_joker_car_left -= 1;
+						x_joker_factor += 0.03;
+						x_joker += 0.09;
+						x_joker_car += 0.09;
+						x_rpg += 0.09;
+					}
+				}
+
 			}
-			
 		}
 	}
+	
 	
 	time += 0.5;
 	glutPostRedisplay();
@@ -1437,6 +1541,15 @@ void serviceLane() {
 void restartGame() {
 	time = 0;
 
+
+	x_rpg = 27;
+	bullet = false;
+	rpg_range = 0;
+	out = false;
+
+	bullets.clear();
+	gameover = false;
+
 	rot_angle_joker_left = 0;
 
 	shoot2 = false;
@@ -1486,8 +1599,33 @@ void restartGame() {
 //=======================================================================
 void myDisplay(void)
 {
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	/*GLfloat fogColor[4] = { 0.5f, 0.5f, 0.5f, 1.0f };
 
+	glFogi(GL_FOG_MODE, GL_LINEAR);
+	glFogfv(GL_FOG_COLOR, fogColor);
+	glFogf(GL_FOG_DENSITY, 1.0f);
+	glHint(GL_FOG_HINT, GL_DONT_CARE); glFogf(GL_FOG_START, 50.0f); // Fog Start Depth 
+	glFogf(GL_FOG_END, 2000.0f); // Fog End Depth
+	glEnable(GL_FOG);*/
+
+	if (counter % 250 == 0 && !hit && !shoot && !escaped && !shoot2) {
+		if (!jRight && !jLeft) {
+			float z_bullet;
+			switch (lane) {
+			case 1: z_bullet = 4.5; break;
+			case 2: z_bullet = 10; break;
+			case 3: z_bullet = 15; break;
+			case 4: z_bullet = 20; break;
+			case 5: z_bullet = 25.5; break;
+			}
+			bullet = true;
+			rpg_range = 0;
+			bullets.push_back(Bullets(x_joker + 2.5, z_bullet, lane)); //new: adding bullets
+		}
+	}
+
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	printf("bamtan: %i, joker %i \n", batman_lane, lane);
 	if (escaped) {
 		if (escape_counter == 1) {
 			PlaySound("sounds/laugh2.wav", NULL, SND_ASYNC || SND_FILENAME);
@@ -1554,6 +1692,9 @@ void myDisplay(void)
 	glLoadIdentity();
 	gluLookAt(x_camera, 20.0f, 15.0f, 20.0f + x_camera, 10.0f, 15.0f, 0.0f, 1.0f, 0.0f);
 		
+
+	// draw bullets
+	DrawBullets(); //new
 
 	// render service lane
 	serviceLane();
@@ -1628,19 +1769,35 @@ void myDisplay(void)
 			glRotated(rot_angle_joker_car_left, 0, 1, 0);
 		}
 	}
+	
 	model_joker_car.Draw();
 	glPopMatrix();
 	glPopMatrix();
 	glPopMatrix();
 
+	if (!shoot && !escaped && !shoot2 && !hit) {
+		glPushMatrix();
+		if (bullet) {
+			glTranslated(-1 * rpg_range, 0, 0);
+		}
+		glTranslated(x_rpg, 4, z_joker); // cylinder at (0,0,1)
+		glRotated(90, 0, 1, 0);
+		GLUquadricObj * qobj;
+		qobj = gluNewQuadric();
+		gluQuadricDrawStyle(qobj, GLU_LINE);
+		gluCylinder(qobj, 0.5, 0.5, 3.0, 100, 100);
+		glPopMatrix();
+	}
+	
 	// Draw Batmobile
 	glPushMatrix();
 	glColor3f(1.0f, 1.0f, 1.0f);
 	glTranslated(x_step, -0.5, z_step);
 	glRotatef(90.f, 0, 1, 0);
-	glScaled(0.08, 0.08, 0.06);
+	glScaled(0.07, 0.08, 0.08);
 	model_batmobile.Draw();
 	glPopMatrix();
+
 
 	glutSwapBuffers();
 }
